@@ -42,7 +42,7 @@ int main(int argc, char * argv[]) {
         editor_open(argv[1]);
     }
 
-    editor_set_status_message("HELP: Ctrl-S = save | Ctrl-Q = quit");
+    editor_set_status_message("HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find");
 
     while (1) {
         editor_refresh_screen();
@@ -153,6 +153,9 @@ void editor_process_keypress() {
                 E.cx = E.editor_row[E.cy].size;
             }
             break;
+        case CTRL_KEY('f'):
+            editor_find();
+            break;
         case BACKSPACE:
         case CTRL_KEY('h'):
         case DEL_KEY:
@@ -199,7 +202,7 @@ void editor_process_keypress() {
  * of text after the prompt, acts as a 'save as' if the user did not
  * open a file
  */
-char * editor_prompt(char * prompt) {
+char * editor_prompt(char * prompt, void (*callback)(char *, int)) {
     size_t bufsize = 128;
     char * buf     = malloc(bufsize);
     size_t buflen  = 0;
@@ -216,12 +219,18 @@ char * editor_prompt(char * prompt) {
         }
         else if (c == '\x1b') {
             editor_set_status_message("");
+            if (callback) {
+                callback(buf, c);
+            }
             free(buf);
             return NULL;
         }
         else if (c == '\r') {
             if (buflen != 0) {
                 editor_set_status_message("");
+                if (callback) {
+                    callback(buf, c);
+                }
                 return buf;
             }
         }
@@ -232,6 +241,10 @@ char * editor_prompt(char * prompt) {
             }
             buf[buflen++] = c;
             buf[buflen]   = '\0';
+        }
+
+        if (callback) {
+            callback(buf, c);
         }
     }
 } /* editor_prompt */
@@ -468,7 +481,7 @@ void editor_update_row(erow * row) {
 }
 
 /**
- * Calculate the value of rx in editor_scroll
+ * Calculates the value of rx in editor_scroll
  */
 int editor_row_cx_to_rx(erow * row, int cx) {
     int rx = 0;
@@ -480,6 +493,25 @@ int editor_row_cx_to_rx(erow * row, int cx) {
         rx++;
     }
     return rx;
+}
+
+/**
+ * Converts the render index into a chars index
+ */
+int editor_row_rx_to_cx(erow * row, int rx) {
+    int cur_rx = 0;
+    int i;
+
+    for (i = 0; i < row->size; i++) {
+        if (row->chars[i] == '\t') {
+            cur_rx += (TEDITOR_TAB_STOP - 1) - (cur_rx % TEDITOR_TAB_STOP);
+        }
+        cur_rx++;
+        if (cur_rx > rx) {
+            return i;
+        }
+    }
+    return i;
 }
 
 /**
@@ -602,6 +634,79 @@ void editor_insert_newline() {
 }
 
 /********************************
+* Find
+********************************/
+
+/**
+ * Method for a basic search feature
+ */
+void editor_find() {
+    int saved_cx     = E.cx;
+    int saved_cy     = E.cy;
+    int saved_coloff = E.coloff;
+    int saved_rowoff = E.rowoff;
+    char * query     = editor_prompt("Search: %s (ESC/Enter to cancel)", editor_find_callback);
+
+    if (query) {
+        free(query);
+    }
+    else {
+        E.cx     = saved_cx;
+        E.cy     = saved_cy;
+        E.coloff = saved_coloff;
+        E.rowoff = saved_rowoff;
+    }
+}
+
+/**
+ * Loops through rows of a file and if a row contains the query string,
+ * move the cursor to the match, allows for iterative search
+ */
+void editor_find_callback(char * query, int key) {
+    static int last_match = -1;
+    static int direction  = 1;
+
+    if (key == '\r' || key == '\x1b') {
+        last_match = -1;
+        direction  = 1;
+        return;
+    }
+    else if (key == ARROW_RIGHT || key == ARROW_DOWN) {
+        direction = 1;
+    }
+    else if (key == ARROW_LEFT || key == ARROW_UP) {
+        direction = -1;
+    }
+    else {
+        last_match = -1;
+        direction  = 1;
+    }
+
+    if (last_match == -1) {
+        direction = 1;
+    }
+    int current = last_match;
+    for (int i = 0; i < E.numrows; i++) {
+        current += direction;
+        if (current == -1) {
+            current = E.numrows - 1;
+        }
+        else if (current == E.numrows) {
+            current = 0;
+        }
+        erow * row   = &E.editor_row[current];
+        char * match = strstr(row->render, query);
+        if (match) { // If a match is found, convert substring location into an index
+            last_match = current;
+            E.cy       = current;
+            E.cx       = editor_row_rx_to_cx(row, match - row->render);
+            E.rowoff   = E.numrows;
+            break;
+        }
+    }
+} /* editor_find_callback */
+
+/********************************
 * File I/O
 ********************************/
 
@@ -661,7 +766,7 @@ char * editor_rows_to_string(int * buflen) {
  */
 void editor_save() {
     if (E.filename == NULL) {
-        E.filename = editor_prompt("Save as: %s");
+        E.filename = editor_prompt("Save as: %s (ESC to cancel)", NULL);
         if (E.filename == NULL) {
             editor_set_status_message("Save aborted");
             return;

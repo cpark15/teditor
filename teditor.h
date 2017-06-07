@@ -68,7 +68,7 @@ void init_editor(void);
 
 void editor_move_cursor(int key);
 void editor_process_keypress(void);
-char * editor_prompt(char * prompt);
+char * editor_prompt(char * prompt, void (*callback)(char *, int));
 
 /********************************
 * Output
@@ -95,6 +95,7 @@ void ab_free(struct abuf * ab);
 void editor_insert_row(int at, char * s, size_t len);
 void editor_update_row(erow * row);
 int editor_row_cx_to_rx(erow * row, int cx);
+int editor_row_rx_to_cx(erow * row, int rx);
 void editor_row_insert_char(erow * row, int at, int c);
 void editor_row_del_char(erow * row, int at);
 void editor_free_row(erow * row);
@@ -108,6 +109,13 @@ void editor_row_append_string(erow * row, char * s, size_t len);
 void editor_insert_char(int c);
 void editor_del_char();
 void editor_insert_newline();
+
+/********************************
+* Find
+********************************/
+
+void editor_find();
+void editor_find_callback(char * query, int key);
 
 /********************************
 * File I/O

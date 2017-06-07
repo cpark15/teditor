@@ -1,4 +1,9 @@
 # teditor
-A simple text editor with basic functionalities.
+Teditor is a simple text editor with basic functionalities. Currently,
+this text editor has the ability to:
+1. Open a file/Create a new file
+2. Read/Write to a file
+3. Search for characters/words in a file
+
 This text editor was created using the tutorial located at:
 http://viewsourcecode.org/snaptoken/kilo/index.html
