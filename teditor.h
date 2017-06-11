@@ -16,10 +16,13 @@
 ********************************/
 
 typedef struct erow {
+    int idx;
     int size;
     int rsize;
     char * chars;
     char * render;
+    unsigned char * hl;
+    int hl_open_comment;
 } erow;
 
 struct editor_config {
@@ -35,12 +38,23 @@ struct editor_config {
     char * filename;
     char statusmsg[80];
     time_t statusmsg_time;
+    struct editor_syntax * syntax;
     struct termios original_term;
 };
 
 struct abuf {
     char * b;
     int len;
+};
+
+struct editor_syntax {
+    char * filetype;
+    char ** filematch;
+    char ** keywords;
+    char * singleline_comment_start;
+    char * multiline_comment_start;
+    char * multiline_comment_end;
+    int flags;
 };
 
 enum editor_key {
@@ -54,6 +68,17 @@ enum editor_key {
     END_KEY,
     PAGE_UP,
     PAGE_DOWN
+};
+
+enum editor_highlight {
+    HL_NORMAL = 0,
+    HL_COMMENT,
+    HL_MLCOMMENT,
+    HL_KEYWORD1,
+    HL_KEYWORD2,
+    HL_STRING,
+    HL_NUMBER,
+    HL_MATCH
 };
 
 /********************************
@@ -116,6 +141,15 @@ void editor_insert_newline();
 
 void editor_find();
 void editor_find_callback(char * query, int key);
+
+/********************************
+* Syntax Highlighting
+********************************/
+
+void editor_update_syntax(erow * row);
+void editor_select_syntax_highlight();
+int editor_syntax_to_color(int hl);
+int is_separator(int c);
 
 /********************************
 * File I/O
